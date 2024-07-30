@@ -1,4 +1,4 @@
-module gtk-app
+module aschoerk.de/gtk-conway
 
 go 1.22.5
 

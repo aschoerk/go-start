@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -97,19 +98,62 @@ func main() {
 	win.SetTitle("GTK Double Buffering Example")
 	win.SetDefaultSize(WIDTH, HEIGHT)
 
-	drawingArea, err := gtk.DrawingAreaNew()
+	// Create a vertical box to hold the panel and canvas
+	vbox, err := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 5)
+	if err != nil {
+		log.Fatal("Unable to create vbox:", err)
+	}
+	win.Add(vbox)
+
+	// Create a horizontal box for the panel and canvas
+	hbox, err := gtk.BoxNew(gtk.ORIENTATION_HORIZONTAL, 5)
+	if err != nil {
+		log.Fatal("Unable to create hbox:", err)
+	}
+	vbox.PackStart(hbox, true, true, 0)
+
+	panel, err := gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 5)
+	if err != nil {
+		log.Fatal("Unable to create panel:", err)
+	}
+	hbox.PackStart(panel, false, false, 0)
+
+	// Create buttons and add them to the panel
+	button1, _ := gtk.ButtonNewWithLabel("Button 1")
+	button2, _ := gtk.ButtonNewWithLabel("Button 2")
+	button3, _ := gtk.ButtonNewWithLabel("Button 3")
+
+	panel.PackStart(button1, false, false, 0)
+	panel.PackStart(button2, false, false, 0)
+	panel.PackStart(button3, false, false, 0)
+
+	canvas, err := gtk.DrawingAreaNew()
 	if err != nil {
 		log.Fatal("Unable to create drawing area:", err)
 	}
-	drawingArea.SetSizeRequest(WIDTH, HEIGHT)
-	drawingArea.AddEvents(int(gdk.BUTTON_PRESS_MASK | gdk.BUTTON_RELEASE_MASK | gdk.POINTER_MOTION_MASK))
+
+	canvas.SetSizeRequest(WIDTH, HEIGHT)
+	canvas.AddEvents(int(gdk.BUTTON_PRESS_MASK | gdk.BUTTON_RELEASE_MASK | gdk.POINTER_MOTION_MASK))
 
 	buffer = &Buffer{data: make([][]bool, HEIGHT)}
 	for i := range buffer.data {
 		buffer.data[i] = make([]bool, WIDTH)
 	}
 
-	drawingArea.Connect("configure-event", func(da *gtk.DrawingArea, event *gdk.Event) {
+	hbox.PackStart(canvas, true, true, 0)
+
+	// Connect button signals
+	button1.Connect("clicked", func() {
+		fmt.Println("Button 1 clicked")
+	})
+	button2.Connect("clicked", func() {
+		fmt.Println("Button 2 clicked")
+	})
+	button3.Connect("clicked", func() {
+		fmt.Println("Button 3 clicked")
+	})
+
+	canvas.Connect("configure-event", func(da *gtk.DrawingArea, event *gdk.Event) {
 		if surface != nil {
 			surface.Close()
 		}
@@ -145,31 +189,30 @@ func main() {
 		updateSurface()
 	})
 
-	drawingArea.Connect("button-press-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
+	canvas.Connect("button-press-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
 		buttonEvent := gdk.EventButtonNewFromEvent(event)
 		handleMousePress(da, buttonEvent)
 		return false
 	})
 
-	drawingArea.Connect("motion-notify-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
+	canvas.Connect("motion-notify-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
 		motionEvent := gdk.EventMotionNewFromEvent(event)
 		handleMouseMotion(da, motionEvent)
 		return false
 	})
 
-	drawingArea.Connect("draw", func(da *gtk.DrawingArea, cr *cairo.Context) {
+	canvas.Connect("draw", func(da *gtk.DrawingArea, cr *cairo.Context) {
 		if surface != nil {
 			cr.SetSourceSurface(surface, 0, 0)
 			cr.Paint()
 		}
 	})
 
-	win.Add(drawingArea)
 	win.Connect("destroy", gtk.MainQuit)
 	win.ShowAll()
 
 	// Start the background updater
-	go updateBufferInBackground(drawingArea)
+	go updateBufferInBackground(canvas)
 
 	gtk.Main()
 }
