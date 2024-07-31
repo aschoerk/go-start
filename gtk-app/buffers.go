@@ -14,6 +14,7 @@ type BooleanBuffer interface {
 	changeSizeNotDestructing(maxX uint, maxY uint) BooleanBuffer
 	maxX() uint
 	maxY() uint
+	equals(BooleanBuffer) bool
 }
 
 type BooleanBufferImpl struct {
@@ -28,6 +29,22 @@ func (b *BooleanBufferImpl) maxX() uint {
 
 func (b *BooleanBufferImpl) maxY() uint {
 	return b.maxYVal
+}
+
+func (b *BooleanBufferImpl) equals(other BooleanBuffer) bool {
+	sizesOk := b.maxXVal == other.maxX() && b.maxYVal == other.maxY()
+	if sizesOk {
+		for i := uint(0); i < b.maxXVal; i++ {
+			for j := uint(0); j < b.maxYVal; j++ {
+				if b.get(i, j) != other.get(i, j) {
+					return false
+				}
+			}
+		}
+		return true
+	} else {
+		return false
+	}
 }
 
 func initBuffer(maxX uint, maxY uint) BooleanBuffer {
@@ -201,10 +218,19 @@ func (b *BooleanBuffersImpl) prev() bool {
 
 func (b *BooleanBuffersImpl) nextGeneration() (BooleanBuffer, bool) {
 	current := b.current()
+	var prev BooleanBuffer = nil
+	if b.prev() {
+		prev = b.current()
+		b.next()
+	}
 	var res BooleanBuffer = nil
 	var changed bool
 	newCurrent := b.progress()
 	res, changed = current.nextGeneration(newCurrent)
+	if prev != nil && res.equals(prev) {
+		b.prev()
+		b.prev()
+	}
 
 	if !changed {
 		if !b.prev() {
