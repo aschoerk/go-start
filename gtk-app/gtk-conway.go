@@ -1,13 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"github.com/gotk3/gotk3/cairo"
-	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 )
@@ -17,71 +14,6 @@ const (
 	HEIGHT = 400
 	SIZE   = 5
 )
-
-type Buffer struct {
-	data    [][]bool
-	blocked int
-	mu      sync.Mutex
-}
-
-func (b *Buffer) Update(newData [][]bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.data = newData
-}
-
-func (b *Buffer) Get() [][]bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.data
-}
-
-func (b *Buffer) ToggleCell(x, y int) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if x >= 0 && x < len(b.data[0]) && y >= 0 && y < len(b.data) {
-		b.data[y][x] = !b.data[y][x]
-	}
-}
-
-func (b *Buffer) NextGeneration() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	newData := make([][]bool, len(b.data))
-	for i := range newData {
-		newData[i] = make([]bool, len(b.data[i]))
-	}
-
-	for y := range b.data {
-		for x := range b.data[y] {
-			neighbors := b.countNeighbors(x, y)
-			if b.data[y][x] {
-				newData[y][x] = neighbors == 2 || neighbors == 3
-			} else {
-				newData[y][x] = neighbors == 3
-			}
-		}
-	}
-
-	b.data = newData
-}
-
-func (b *Buffer) countNeighbors(x, y int) int {
-	count := 0
-	for dy := -1; dy <= 1; dy++ {
-		for dx := -1; dx <= 1; dx++ {
-			if dx == 0 && dy == 0 {
-				continue
-			}
-			nx, ny := x+dx, y+dy
-			if nx >= 0 && nx < len(b.data[0]) && ny >= 0 && ny < len(b.data) && b.data[ny][nx] {
-				count++
-			}
-		}
-	}
-	return count
-}
 
 var (
 	buffer   *Buffer
@@ -127,14 +59,7 @@ func main() {
 	panel.PackStart(button1, false, false, 0)
 	panel.PackStart(button2, false, false, 0)
 	panel.PackStart(button3, false, false, 0)
-
-	canvas, err := gtk.DrawingAreaNew()
-	if err != nil {
-		log.Fatal("Unable to create drawing area:", err)
-	}
-
-	canvas.SetSizeRequest(WIDTH, HEIGHT)
-	canvas.AddEvents(int(gdk.BUTTON_PRESS_MASK | gdk.BUTTON_RELEASE_MASK | gdk.POINTER_MOTION_MASK))
+	var canvas = canvasCreate()
 
 	buffer = &Buffer{data: make([][]bool, HEIGHT)}
 	for i := range buffer.data {
@@ -152,69 +77,9 @@ func main() {
 		} else {
 			button1.SetLabel("start conway")
 		}
-		fmt.Println("Button 1 clicked")
-	})
-	button2.Connect("clicked", func() {
-		fmt.Println("Button 2 clicked")
-	})
-	button3.Connect("clicked", func() {
-		fmt.Println("Button 3 clicked")
 	})
 
-	canvas.Connect("configure-event", func(da *gtk.DrawingArea, event *gdk.Event) {
-		if surface != nil {
-			surface.Close()
-		}
-		win, err := da.GetWindow()
-		if err != nil {
-			log.Fatal("unable get window", err)
-		}
-		width := da.GetAllocatedWidth()
-		height := da.GetAllocatedHeight()
-		surface, err = win.CreateSimilarSurface(cairo.CONTENT_COLOR, width, height)
-		if err != nil {
-			log.Fatal("unable get surface", err)
-		}
-
-		// Update the buffer size
-		buffer.mu.Lock()
-		var orgData = buffer.data
-
-		buffer.data = make([][]bool, height/SIZE)
-		for i := range buffer.data {
-			buffer.data[i] = make([]bool, width/SIZE)
-			if i < len(orgData) {
-				for j := range orgData[i] {
-					if j < len(buffer.data[i]) {
-						buffer.data[i][j] = orgData[i][j]
-					}
-				}
-			}
-		}
-		buffer.mu.Unlock()
-
-		// Redraw the surface
-		updateSurface()
-	})
-
-	canvas.Connect("button-press-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
-		buttonEvent := gdk.EventButtonNewFromEvent(event)
-		handleMousePress(da, buttonEvent)
-		return false
-	})
-
-	canvas.Connect("motion-notify-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
-		motionEvent := gdk.EventMotionNewFromEvent(event)
-		handleMouseMotion(da, motionEvent)
-		return false
-	})
-
-	canvas.Connect("draw", func(da *gtk.DrawingArea, cr *cairo.Context) {
-		if surface != nil {
-			cr.SetSourceSurface(surface, 0, 0)
-			cr.Paint()
-		}
-	})
+	canvasConnect(canvas)
 
 	win.Connect("destroy", gtk.MainQuit)
 	win.ShowAll()
@@ -223,43 +88,6 @@ func main() {
 	go updateBufferInBackground(canvas)
 
 	gtk.Main()
-}
-
-func handleMouseMotion(da *gtk.DrawingArea, event *gdk.EventMotion) {
-	// Use 'da' as needed
-	x, y := event.MotionVal()
-	state := event.State()
-
-	if state&gdk.BUTTON1_MASK != 0 {
-		handleMouse(da, x, y)
-	}
-
-}
-
-func handleMousePress(da *gtk.DrawingArea, event *gdk.EventButton) {
-	x := event.X()
-	y := event.Y()
-	handleMouse(da, x, y)
-}
-
-func handleMouse(da *gtk.DrawingArea, x float64, y float64) {
-	var bufferX = int(x / SIZE)
-	var bufferY = int(y / SIZE)
-	buffer.mu.Lock()
-	if bufferY >= 0 && bufferX >= 0 && bufferY < len(buffer.data) && bufferX < len(buffer.data[0]) {
-		buffer.data[bufferY][bufferX] = true
-	}
-
-	if buffer.blocked < 4 {
-		buffer.blocked += 2
-	}
-	buffer.mu.Unlock()
-
-	// Schedule a redraw on the main GTK thread
-	glib.IdleAdd(func() {
-		updateSurface()
-		da.QueueDraw()
-	})
 }
 
 func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
