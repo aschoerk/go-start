@@ -84,8 +84,9 @@ func (b *Buffer) countNeighbors(x, y int) int {
 }
 
 var (
-	buffer  *Buffer
-	surface *cairo.Surface
+	buffer   *Buffer
+	surface  *cairo.Surface
+	doconway bool
 )
 
 func main() {
@@ -119,7 +120,7 @@ func main() {
 	hbox.PackStart(panel, false, false, 0)
 
 	// Create buttons and add them to the panel
-	button1, _ := gtk.ButtonNewWithLabel("Button 1")
+	button1, _ := gtk.ButtonNewWithLabel("start conway")
 	button2, _ := gtk.ButtonNewWithLabel("Button 2")
 	button3, _ := gtk.ButtonNewWithLabel("Button 3")
 
@@ -142,8 +143,15 @@ func main() {
 
 	hbox.PackStart(canvas, true, true, 0)
 
+	doconway = false
 	// Connect button signals
 	button1.Connect("clicked", func() {
+		doconway = !doconway
+		if doconway {
+			button1.SetLabel("stop conway")
+		} else {
+			button1.SetLabel("start conway")
+		}
 		fmt.Println("Button 1 clicked")
 	})
 	button2.Connect("clicked", func() {
@@ -257,20 +265,23 @@ func handleMouse(da *gtk.DrawingArea, x float64, y float64) {
 func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
 	for {
 		time.Sleep(100 * time.Millisecond)
-		if buffer.blocked > 0 {
-			buffer.mu.Lock()
-			buffer.blocked--
-			buffer.mu.Unlock()
-		} else {
-			buffer.NextGeneration()
+		if doconway {
 
-			// Schedule a redraw on the main GTK thread
+			if buffer.blocked > 0 {
+				buffer.mu.Lock()
+				buffer.blocked--
+				buffer.mu.Unlock()
+			} else {
+				buffer.NextGeneration()
 
+				// Schedule a redraw on the main GTK thread
+
+			}
+			glib.IdleAdd(func() {
+				updateSurface()
+				drawingArea.QueueDraw()
+			})
 		}
-		glib.IdleAdd(func() {
-			updateSurface()
-			drawingArea.QueueDraw()
-		})
 
 	}
 }
