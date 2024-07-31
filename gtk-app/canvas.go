@@ -60,22 +60,9 @@ func canvasConfigure(canvas *gtk.DrawingArea, event *gdk.Event) {
 	}
 
 	// Update the buffer size
-	buffer.mu.Lock()
-	var orgData = buffer.data
-
-	tmp := make([][]bool, height/SIZE)
-	for i := range tmp {
-		tmp[i] = make([]bool, width/SIZE)
-		if i < len(*orgData) {
-			for j := range (*orgData)[i] {
-				if j < len(tmp[i]) {
-					tmp[i][j] = (*orgData)[i][j]
-				}
-			}
-		}
-	}
-	buffer.data = &tmp
-	buffer.mu.Unlock()
+	buffers.mu().Lock()
+	buffers.current().changeSizeNotDestructing(uint(width/SIZE), uint(height/SIZE))
+	buffers.mu().Unlock()
 
 	// Redraw the surface
 	updateSurface()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"sync"
 )
 
 type BooleanBuffer interface {
@@ -9,7 +10,8 @@ type BooleanBuffer interface {
 	set(x uint, y uint, val bool)
 	newEmptyBuffer() BooleanBuffer
 	nextGeneration(BooleanBuffer) (BooleanBuffer, bool)
-	extendDestructing(maxX uint, maxY uint)
+	changeSizeDestructing(maxX uint, maxY uint)
+	changeSizeNotDestructing(maxX uint, maxY uint) BooleanBuffer
 	maxX() uint
 	maxY() uint
 }
@@ -37,7 +39,7 @@ func initBuffer(maxX uint, maxY uint) BooleanBuffer {
 	return &res
 }
 
-func (bb *BooleanBufferImpl) extendDestructing(maxX uint, maxY uint) {
+func (bb *BooleanBufferImpl) changeSizeDestructing(maxX uint, maxY uint) {
 	bb.vals = make([]bool, maxX*maxY)
 }
 
@@ -65,6 +67,20 @@ func (b *BooleanBufferImpl) newEmptyBuffer() BooleanBuffer {
 	return &res
 }
 
+func (b *BooleanBufferImpl) changeSizeNotDestructing(maxX uint, maxY uint) BooleanBuffer {
+	if maxX != b.maxX() || maxY != b.maxY() {
+		newB := initBuffer(maxX, maxY)
+		for x := uint(0); x < min(maxX, b.maxX()); x++ {
+			for y := uint(0); y < min(maxY, b.maxY()); y++ {
+				newB.set(x, y, b.get(x, y))
+			}
+		}
+		return newB
+	} else {
+		return b
+	}
+}
+
 func (b *BooleanBufferImpl) countNeighbors(x, y uint) uint {
 	var count uint
 	for dy := -1; dy <= 1; dy++ {
@@ -85,7 +101,7 @@ func (b *BooleanBufferImpl) nextGeneration(buffer BooleanBuffer) (BooleanBuffer,
 
 	if buffer != nil {
 		if buffer.maxX() != b.maxXVal || buffer.maxY() != b.maxYVal {
-			buffer.extendDestructing(b.maxXVal, b.maxYVal)
+			buffer.changeSizeDestructing(b.maxXVal, b.maxYVal)
 		}
 	} else {
 		buffer = initBuffer(b.maxXVal, b.maxYVal)
@@ -116,12 +132,15 @@ type BooleanBuffers interface {
 	next() bool
 	prev() bool
 	nextGeneration() (BooleanBuffer, bool)
+	mu() *sync.Mutex
+	changeSizes(uint, uint)
 }
 
 type BooleanBuffersImpl struct {
 	size    uint
 	ptr     uint
 	buffers []BooleanBuffer
+	mutex   sync.Mutex
 }
 
 func initBuffers(size uint, maxX uint, maxY uint) BooleanBuffers {
@@ -136,13 +155,13 @@ func initBuffers(size uint, maxX uint, maxY uint) BooleanBuffers {
 func (b *BooleanBuffersImpl) current() BooleanBuffer {
 	var res BooleanBuffer = b.buffers[b.ptr]
 	if res == nil {
-		res = initBuffer(res.maxX(), res.maxY())
-		b.buffers[b.ptr] = res
+		log.Fatal("current must always be not nil")
 	}
 	return res
 }
 
 func (b *BooleanBuffersImpl) relative(diff int) bool {
+	example := b.current()
 	var prevPtr = (int(b.ptr) + diff) % int(b.size)
 	if prevPtr < 0 {
 		prevPtr += int(b.size)
@@ -150,9 +169,25 @@ func (b *BooleanBuffersImpl) relative(diff int) bool {
 	res := b.buffers[prevPtr]
 	if res != nil {
 		b.ptr = uint(prevPtr)
+		res.changeSizeNotDestructing(example.maxX(), example.maxY())
 		return true
 	} else {
 		return false
+	}
+}
+
+func (b *BooleanBuffersImpl) progress() BooleanBuffer {
+	example := b.current()
+	var newPtr = (b.ptr + 1) % b.size
+
+	res := b.buffers[newPtr]
+	b.ptr = uint(newPtr)
+	if res != nil {
+		res.changeSizeNotDestructing(example.maxX(), example.maxY())
+		return res
+	} else {
+		b.buffers[b.ptr] = initBuffer(example.maxX(), example.maxY())
+		return b.buffers[b.ptr]
 	}
 }
 
@@ -168,15 +203,22 @@ func (b *BooleanBuffersImpl) nextGeneration() (BooleanBuffer, bool) {
 	current := b.current()
 	var res BooleanBuffer = nil
 	var changed bool
-	if b.next() {
-		res, changed = current.nextGeneration(b.current())
-	} else {
-		res, changed = current.nextGeneration(nil)
-		b.buffers[b.ptr] = res
-	}
+	newCurrent := b.progress()
+	res, changed = current.nextGeneration(newCurrent)
 
 	if !changed {
-		b.prev()
+		if !b.prev() {
+			log.Fatal("prev after progress must always be not nil")
+		}
 	}
 	return res, changed
+}
+
+func (b *BooleanBuffersImpl) mu() *sync.Mutex {
+	return &b.mutex
+}
+
+func (b *BooleanBuffersImpl) changeSizes(maxX uint, maxY uint) {
+	newB := b.current().changeSizeNotDestructing(maxX, maxY)
+	b.buffers[b.ptr] = newB
 }

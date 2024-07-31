@@ -14,13 +14,7 @@ func main() {
 
 	var win, canvas = createWindow()
 
-	tmp := make([][]bool, HEIGHT)
-	buffer = &Buffer{data: &tmp}
-	for i := range *buffer.data {
-		(*buffer.data)[i] = make([]bool, WIDTH)
-	}
-
-	bufferHistory = make([]*[][]bool, MAX_BUFFER_HISTORY)
+	buffers = initBuffers(MAX_BUFFER_HISTORY, WIDTH, HEIGHT)
 
 	doconway = false
 	// Connect button signals
@@ -95,35 +89,24 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 	})
 
 	prevInHistoryButton.Connect("clicked", func() {
-		handleHistory(canvas, -1)
+		if buffers.prev() {
+			glib.IdleAdd(func() {
+				updateSurface()
+				canvas.QueueDraw()
+			})
+		}
 	})
 
 	nextInHistoryButton.Connect("clicked", func() {
-		handleHistory(canvas, +1)
+		if buffers.next() {
+			glib.IdleAdd(func() {
+				updateSurface()
+				canvas.QueueDraw()
+			})
+		}
 	})
 
 	return win, canvas
-}
-
-func handleHistory(canvas *gtk.DrawingArea, dir int) {
-	buffer.mu.Lock()
-	defer buffer.mu.Unlock()
-	var saveDoConway = doconway
-	doconway = false
-	var tmp = (actBufferHistoryIndex + dir) % MAX_BUFFER_HISTORY
-	if tmp < 0 {
-		tmp = tmp + MAX_BUFFER_HISTORY
-	}
-	if bufferHistory[tmp] != nil {
-		bufferHistory[actBufferHistoryIndex] = buffer.data
-		buffer.data = bufferHistory[tmp]
-		actBufferHistoryIndex = tmp
-	}
-	doconway = saveDoConway
-	glib.IdleAdd(func() {
-		updateSurface()
-		canvas.QueueDraw()
-	})
 }
 
 func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
@@ -131,16 +114,14 @@ func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
 		time.Sleep(100 * time.Millisecond)
 		if doconway {
 
-			if buffer.blocked > 0 {
-				buffer.mu.Lock()
-				buffer.blocked--
-				buffer.mu.Unlock()
+			if blocked > 0 {
+				buffers.mu().Lock()
+				blocked -= 1
+				buffers.mu().Unlock()
 			} else {
-				buffer.NextGeneration()
-
-				// Schedule a redraw on the main GTK thread
-
+				buffers.nextGeneration()
 			}
+
 			glib.IdleAdd(func() {
 				updateSurface()
 				drawingArea.QueueDraw()
@@ -158,17 +139,18 @@ func updateSurface() {
 	cr := cairo.Create(surface)
 	defer cr.Close()
 
-	data := buffer.Get()
+	data := buffers.current()
 
 	cr.SetSourceRGB(1, 1, 1) // White background
 	cr.Paint()
 
 	cr.SetSourceRGB(0, 0, 0) // Black for drawing
-	for i, row := range *data {
-		for j, val := range row {
+	for i := uint(0); i < data.maxX(); i++ {
+		for j := uint(0); j < data.maxY(); j++ {
+			val := data.get(i, j)
 			if val {
-				x := float64(j) * SIZE
-				y := float64(i) * SIZE
+				x := float64(i) * SIZE
+				y := float64(j) * SIZE
 				cr.Rectangle(x, y, SIZE, SIZE)
 				cr.Fill()
 			}

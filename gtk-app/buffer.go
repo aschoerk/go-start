@@ -58,9 +58,6 @@ func (b *Buffer) NextGeneration() {
 		}
 	}
 	if isChanged {
-		bufferHistory[actBufferHistoryIndex] = b.data
-
-		actBufferHistoryIndex = (actBufferHistoryIndex + 1) % MAX_BUFFER_HISTORY
 
 		b.data = &newData
 	}

@@ -10,10 +10,9 @@ const (
 )
 
 var (
-	buffer                *Buffer
-	bufferHistory         []*[][]bool
-	actBufferHistoryIndex = 0 // the next free entry in bufferHistory
-	surface               *cairo.Surface
-	doconway              bool = false
-	drawOrInvert          bool = true
+	buffers      BooleanBuffers
+	surface      *cairo.Surface
+	doconway     bool = false
+	drawOrInvert bool = true
+	blocked      int  = 0
 )
