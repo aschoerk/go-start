@@ -39,22 +39,32 @@ func (b *Buffer) NextGeneration() {
 		newData[i] = make([]bool, len((*b.data)[i]))
 	}
 
+	isChanged := false
+
 	for y := range *b.data {
 		for x := range (*b.data)[y] {
 			neighbors := b.countNeighbors(x, y)
+			var tmp bool
 			if (*b.data)[y][x] {
-				newData[y][x] = neighbors == 2 || neighbors == 3
+				tmp = neighbors == 2 || neighbors == 3
 			} else {
-				newData[y][x] = neighbors == 3
+				tmp = neighbors == 3
 			}
+			if tmp != (*b.data)[y][x] {
+				isChanged = true
+			}
+			newData[y][x] = tmp
+
 		}
 	}
+	if isChanged {
+		bufferHistory[actBufferHistoryIndex] = b.data
 
-	bufferHistory[actBufferHistoryIndex] = b.data
+		actBufferHistoryIndex = (actBufferHistoryIndex + 1) % MAX_BUFFER_HISTORY
 
-	actBufferHistoryIndex = (actBufferHistoryIndex + 1) % MAX_BUFFER_HISTORY
+		b.data = &newData
+	}
 
-	b.data = &newData
 }
 
 func (b *Buffer) countNeighbors(x, y int) int {

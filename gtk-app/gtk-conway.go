@@ -41,7 +41,7 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 	if err != nil {
 		log.Fatal("Unable to create window:", err)
 	}
-	win.SetTitle("GTK Double Buffering Example")
+	win.SetTitle("GTK Conway Example")
 	win.SetDefaultSize(WIDTH, HEIGHT)
 
 	// Create a vertical box to hold the panel and canvas
