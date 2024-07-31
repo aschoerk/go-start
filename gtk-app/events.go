@@ -27,8 +27,12 @@ func handleMouse(da *gtk.DrawingArea, x float64, y float64) {
 	var bufferX = int(x / SIZE)
 	var bufferY = int(y / SIZE)
 	buffer.mu.Lock()
-	if bufferY >= 0 && bufferX >= 0 && bufferY < len(buffer.data) && bufferX < len(buffer.data[0]) {
-		buffer.data[bufferY][bufferX] = true
+	if bufferY >= 0 && bufferX >= 0 && bufferY < len(*buffer.data) && bufferX < len((*buffer.data)[0]) {
+		if drawOrInvert {
+			(*buffer.data)[bufferY][bufferX] = true
+		} else {
+			(*buffer.data)[bufferY][bufferX] = !(*buffer.data)[bufferY][bufferX]
+		}
 	}
 
 	if buffer.blocked < 4 {

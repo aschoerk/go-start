@@ -22,7 +22,7 @@ func canvasCreate() *gtk.DrawingArea {
 }
 
 func canvasConnect(canvas *gtk.DrawingArea) {
-	canvas.Connect("configure-event", CanvasConfigure)
+	canvas.Connect("configure-event", canvasConfigure)
 
 	canvas.Connect("button-press-event", func(da *gtk.DrawingArea, event *gdk.Event) bool {
 		buttonEvent := gdk.EventButtonNewFromEvent(event)
@@ -44,7 +44,7 @@ func canvasConnect(canvas *gtk.DrawingArea) {
 	})
 }
 
-func CanvasConfigure(canvas *gtk.DrawingArea, event *gdk.Event) {
+func canvasConfigure(canvas *gtk.DrawingArea, event *gdk.Event) {
 	if surface != nil {
 		surface.Close()
 	}
@@ -63,17 +63,18 @@ func CanvasConfigure(canvas *gtk.DrawingArea, event *gdk.Event) {
 	buffer.mu.Lock()
 	var orgData = buffer.data
 
-	buffer.data = make([][]bool, height/SIZE)
-	for i := range buffer.data {
-		buffer.data[i] = make([]bool, width/SIZE)
-		if i < len(orgData) {
-			for j := range orgData[i] {
-				if j < len(buffer.data[i]) {
-					buffer.data[i][j] = orgData[i][j]
+	tmp := make([][]bool, height/SIZE)
+	for i := range tmp {
+		tmp[i] = make([]bool, width/SIZE)
+		if i < len(*orgData) {
+			for j := range (*orgData)[i] {
+				if j < len(tmp[i]) {
+					tmp[i][j] = (*orgData)[i][j]
 				}
 			}
 		}
 	}
+	buffer.data = &tmp
 	buffer.mu.Unlock()
 
 	// Redraw the surface

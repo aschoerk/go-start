@@ -9,20 +9,33 @@ import (
 	"github.com/gotk3/gotk3/gtk"
 )
 
-const (
-	WIDTH  = 400
-	HEIGHT = 400
-	SIZE   = 5
-)
-
-var (
-	buffer   *Buffer
-	surface  *cairo.Surface
-	doconway bool
-)
-
 func main() {
 	gtk.Init(nil)
+
+	var win, canvas = createWindow()
+
+	tmp := make([][]bool, HEIGHT)
+	buffer = &Buffer{data: &tmp}
+	for i := range *buffer.data {
+		(*buffer.data)[i] = make([]bool, WIDTH)
+	}
+
+	bufferHistory = make([]*[][]bool, MAX_BUFFER_HISTORY)
+
+	doconway = false
+	// Connect button signals
+	canvasConnect(canvas)
+
+	win.Connect("destroy", gtk.MainQuit)
+	win.ShowAll()
+
+	// Start the background updater
+	go updateBufferInBackground(canvas)
+
+	gtk.Main()
+}
+
+func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 
 	win, err := gtk.WindowNew(gtk.WINDOW_TOPLEVEL)
 	if err != nil {
@@ -50,44 +63,67 @@ func main() {
 		log.Fatal("Unable to create panel:", err)
 	}
 	hbox.PackStart(panel, false, false, 0)
-
 	// Create buttons and add them to the panel
-	button1, _ := gtk.ButtonNewWithLabel("start conway")
-	button2, _ := gtk.ButtonNewWithLabel("Button 2")
-	button3, _ := gtk.ButtonNewWithLabel("Button 3")
+	runButton, _ := gtk.ButtonNewWithLabel("start conway")
+	penButton, _ := gtk.ButtonNewWithLabel("toggle boxes")
+	prevInHistoryButton, _ := gtk.ButtonNewWithLabel("prev")
+	nextInHistoryButton, _ := gtk.ButtonNewWithLabel("next")
 
-	panel.PackStart(button1, false, false, 0)
-	panel.PackStart(button2, false, false, 0)
-	panel.PackStart(button3, false, false, 0)
+	panel.PackStart(runButton, false, false, 0)
+	panel.PackStart(penButton, false, false, 0)
+	panel.PackStart(prevInHistoryButton, false, false, 0)
+	panel.PackStart(nextInHistoryButton, false, false, 0)
 	var canvas = canvasCreate()
-
-	buffer = &Buffer{data: make([][]bool, HEIGHT)}
-	for i := range buffer.data {
-		buffer.data[i] = make([]bool, WIDTH)
-	}
-
 	hbox.PackStart(canvas, true, true, 0)
 
-	doconway = false
-	// Connect button signals
-	button1.Connect("clicked", func() {
+	runButton.Connect("clicked", func() {
 		doconway = !doconway
 		if doconway {
-			button1.SetLabel("stop conway")
+			runButton.SetLabel("stop conway")
 		} else {
-			button1.SetLabel("start conway")
+			runButton.SetLabel("start conway")
 		}
 	})
 
-	canvasConnect(canvas)
+	penButton.Connect("clicked", func() {
+		drawOrInvert = !drawOrInvert
+		if drawOrInvert {
+			penButton.SetLabel("toggle boxes")
+		} else {
+			penButton.SetLabel("draw boxes")
+		}
+	})
 
-	win.Connect("destroy", gtk.MainQuit)
-	win.ShowAll()
+	prevInHistoryButton.Connect("clicked", func() {
+		handleHistory(canvas, -1)
+	})
 
-	// Start the background updater
-	go updateBufferInBackground(canvas)
+	nextInHistoryButton.Connect("clicked", func() {
+		handleHistory(canvas, +1)
+	})
 
-	gtk.Main()
+	return win, canvas
+}
+
+func handleHistory(canvas *gtk.DrawingArea, dir int) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	var saveDoConway = doconway
+	doconway = false
+	var tmp = (actBufferHistoryIndex + dir) % MAX_BUFFER_HISTORY
+	if tmp < 0 {
+		tmp = tmp + MAX_BUFFER_HISTORY
+	}
+	if bufferHistory[tmp] != nil {
+		bufferHistory[actBufferHistoryIndex] = buffer.data
+		buffer.data = bufferHistory[tmp]
+		actBufferHistoryIndex = tmp
+	}
+	doconway = saveDoConway
+	glib.IdleAdd(func() {
+		updateSurface()
+		canvas.QueueDraw()
+	})
 }
 
 func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
@@ -128,7 +164,7 @@ func updateSurface() {
 	cr.Paint()
 
 	cr.SetSourceRGB(0, 0, 0) // Black for drawing
-	for i, row := range data {
+	for i, row := range *data {
 		for j, val := range row {
 			if val {
 				x := float64(j) * SIZE
