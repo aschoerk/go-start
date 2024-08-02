@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"aschoerk.de/gtk-conway/conway"
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
@@ -14,7 +15,7 @@ func main() {
 
 	var win, canvas = createWindow()
 
-	buffers = initBuffers(MAX_BUFFER_HISTORY, WIDTH, HEIGHT)
+	buffers = conway.InitBuffers(MAX_BUFFER_HISTORY, WIDTH, HEIGHT)
 
 	doconway = false
 	// Connect button signals
@@ -89,7 +90,7 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 	})
 
 	prevInHistoryButton.Connect("clicked", func() {
-		if buffers.prev() {
+		if buffers.Prev() {
 			glib.IdleAdd(func() {
 				updateSurface()
 				canvas.QueueDraw()
@@ -98,7 +99,7 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 	})
 
 	nextInHistoryButton.Connect("clicked", func() {
-		if buffers.next() {
+		if buffers.Next() {
 			glib.IdleAdd(func() {
 				updateSurface()
 				canvas.QueueDraw()
@@ -115,11 +116,11 @@ func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
 		if doconway {
 
 			if blocked > 0 {
-				buffers.mu().Lock()
+				buffers.Mu().Lock()
 				blocked -= 1
-				buffers.mu().Unlock()
+				buffers.Mu().Unlock()
 			} else {
-				buffers.nextGeneration()
+				buffers.NextGeneration()
 			}
 
 			glib.IdleAdd(func() {
@@ -139,15 +140,15 @@ func updateSurface() {
 	cr := cairo.Create(surface)
 	defer cr.Close()
 
-	data := buffers.current()
+	data := buffers.Current()
 
 	cr.SetSourceRGB(1, 1, 1) // White background
 	cr.Paint()
 
 	cr.SetSourceRGB(0, 0, 0) // Black for drawing
-	for i := uint(0); i < data.maxX(); i++ {
-		for j := uint(0); j < data.maxY(); j++ {
-			val := data.get(i, j)
+	for i := uint(0); i < data.MaxX(); i++ {
+		for j := uint(0); j < data.MaxY(); j++ {
+			val := data.Get(i, j)
 			if val {
 				x := float64(i) * SIZE
 				y := float64(j) * SIZE

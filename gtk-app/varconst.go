@@ -1,6 +1,9 @@
 package main
 
-import "github.com/gotk3/gotk3/cairo"
+import (
+	"aschoerk.de/gtk-conway/conway"
+	"github.com/gotk3/gotk3/cairo"
+)
 
 const (
 	WIDTH              = 400
@@ -10,7 +13,7 @@ const (
 )
 
 var (
-	buffers      BooleanBuffers
+	buffers      conway.ConwayBuffers
 	surface      *cairo.Surface
 	doconway     bool = false
 	drawOrInvert bool = true

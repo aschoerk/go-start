@@ -26,20 +26,20 @@ func handleMousePress(da *gtk.DrawingArea, event *gdk.EventButton) {
 func handleMouse(da *gtk.DrawingArea, x float64, y float64) {
 	var bufferX = uint(x / SIZE)
 	var bufferY = uint(y / SIZE)
-	buffers.mu().Lock()
-	buffer := buffers.current()
-	if bufferY >= 0 && bufferX >= 0 && bufferY < buffer.maxY() && bufferX < buffer.maxX() {
+	buffers.Mu().Lock()
+	buffer := buffers.Current()
+	if bufferY >= 0 && bufferX >= 0 && bufferY < buffer.MaxY() && bufferX < buffer.MaxX() {
 		if drawOrInvert {
-			buffer.set(bufferX, bufferY, true)
+			buffer.Set(bufferX, bufferY, true)
 		} else {
-			buffer.set(bufferX, bufferY, !buffer.get(bufferX, bufferY))
+			buffer.Set(bufferX, bufferY, !buffer.Get(bufferX, bufferY))
 		}
 	}
 
 	if blocked < 4 {
 		blocked += 2
 	}
-	buffers.mu().Unlock()
+	buffers.Mu().Unlock()
 
 	// Schedule a redraw on the main GTK thread
 	glib.IdleAdd(func() {

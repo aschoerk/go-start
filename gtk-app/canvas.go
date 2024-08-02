@@ -60,9 +60,9 @@ func canvasConfigure(canvas *gtk.DrawingArea, event *gdk.Event) {
 	}
 
 	// Update the buffer size
-	buffers.mu().Lock()
-	buffers.current().changeSizeNotDestructing(uint(width/SIZE), uint(height/SIZE))
-	buffers.mu().Unlock()
+	buffers.Mu().Lock()
+	buffers.Current().ChangeSizeNotDestructing(uint(width/SIZE), uint(height/SIZE))
+	buffers.Mu().Unlock()
 
 	// Redraw the surface
 	updateSurface()
