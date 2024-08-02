@@ -24,8 +24,8 @@ func handleMousePress(da *gtk.DrawingArea, event *gdk.EventButton) {
 }
 
 func handleMouse(da *gtk.DrawingArea, x float64, y float64) {
-	var bufferX = uint(x / SIZE)
-	var bufferY = uint(y / SIZE)
+	var bufferX = uint32(x / SIZE)
+	var bufferY = uint32(y / SIZE)
 	buffers.Mu().Lock()
 	buffer := buffers.Current()
 	if bufferY >= 0 && bufferX >= 0 && bufferY < buffer.MaxY() && bufferX < buffer.MaxX() {

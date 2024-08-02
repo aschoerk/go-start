@@ -11,21 +11,23 @@ type ConwayBuffers interface {
 	Prev() bool
 	NextGeneration() (ConwayBuffer, bool)
 	Mu() *sync.Mutex
-	changeSizes(uint, uint)
+	ChangeSizeNotDestructing(maxX uint32, maxY uint32)
+	CurrentBounds() (uint32, uint32)
+	changeSizes(uint32, uint32)
 }
 
-func InitBuffers(size uint, maxX uint, maxY uint) ConwayBuffers {
+func InitBuffers(size uint32, maxX uint32, maxY uint32) ConwayBuffers {
 	var res conwayBuffersImpl
 	res.size = size
 	res.ptr = 0
 	res.buffers = make([]ConwayBuffer, size)
-	res.buffers[0] = initBuffer(maxX, maxY)
+	res.buffers[0] = newBuffer(maxX, maxY)
 	return &res
 }
 
 type conwayBuffersImpl struct {
-	size    uint
-	ptr     uint
+	size    uint32
+	ptr     uint32
 	buffers []ConwayBuffer
 	mutex   sync.Mutex
 }
@@ -38,6 +40,10 @@ func (b *conwayBuffersImpl) Current() ConwayBuffer {
 	return res
 }
 
+func (b *conwayBuffersImpl) CurrentBounds() (uint32, uint32) {
+	return currentMaxX, currentMaxY
+}
+
 func (b *conwayBuffersImpl) relative(diff int) bool {
 	example := b.Current()
 	var prevPtr = (int(b.ptr) + diff) % int(b.size)
@@ -46,8 +52,8 @@ func (b *conwayBuffersImpl) relative(diff int) bool {
 	}
 	res := b.buffers[prevPtr]
 	if res != nil {
-		b.ptr = uint(prevPtr)
-		res.ChangeSizeNotDestructing(example.MaxX(), example.MaxY())
+		b.ptr = uint32(prevPtr)
+		res.changeSizeNotDestructing(example.MaxX(), example.MaxY())
 		return true
 	} else {
 		return false
@@ -59,12 +65,12 @@ func (b *conwayBuffersImpl) progress() ConwayBuffer {
 	var newPtr = (b.ptr + 1) % b.size
 
 	res := b.buffers[newPtr]
-	b.ptr = uint(newPtr)
+	b.ptr = uint32(newPtr)
 	if res != nil {
-		res.ChangeSizeNotDestructing(example.MaxX(), example.MaxY())
+		res.changeSizeNotDestructing(example.MaxX(), example.MaxY())
 		return res
 	} else {
-		b.buffers[b.ptr] = initBuffer(example.MaxX(), example.MaxY())
+		b.buffers[b.ptr] = newBuffer(example.MaxX(), example.MaxY())
 		return b.buffers[b.ptr]
 	}
 }
@@ -105,7 +111,13 @@ func (b *conwayBuffersImpl) Mu() *sync.Mutex {
 	return &b.mutex
 }
 
-func (b *conwayBuffersImpl) changeSizes(maxX uint, maxY uint) {
-	newB := b.Current().ChangeSizeNotDestructing(maxX, maxY)
+func (b *conwayBuffersImpl) changeSizes(maxX uint32, maxY uint32) {
+	newB := b.Current().changeSizeNotDestructing(maxX, maxY)
 	b.buffers[b.ptr] = newB
+}
+
+func (b *conwayBuffersImpl) ChangeSizeNotDestructing(maxX uint32, maxY uint32) {
+	b.Mu().Lock()
+	b.buffers[b.ptr] = b.Current().changeSizeNotDestructing(maxX, maxY)
+	b.Mu().Unlock()
 }

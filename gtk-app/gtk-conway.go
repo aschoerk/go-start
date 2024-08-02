@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"runtime"
 	"time"
 
 	"aschoerk.de/gtk-conway/conway"
@@ -11,11 +13,19 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 4096)
+			n := runtime.Stack(buf, false)
+			fmt.Printf("Panic: %v\n", r)
+			fmt.Printf("Stack trace:\n%s\n", buf[:n])
+		}
+	}()
 	gtk.Init(nil)
 
-	var win, canvas = createWindow()
+	var win, canvas, dimensions = createWindow()
 
-	buffers = conway.InitBuffers(MAX_BUFFER_HISTORY, WIDTH, HEIGHT)
+	buffers = conway.InitBuffers(MAX_BUFFER_HISTORY, WIDTH/SIZE, HEIGHT/SIZE)
 
 	doconway = false
 	// Connect button signals
@@ -25,12 +35,12 @@ func main() {
 	win.ShowAll()
 
 	// Start the background updater
-	go updateBufferInBackground(canvas)
+	go updateBufferInBackground(canvas, dimensions)
 
 	gtk.Main()
 }
 
-func createWindow() (*gtk.Window, *gtk.DrawingArea) {
+func createWindow() (*gtk.Window, *gtk.DrawingArea, *gtk.Label) {
 
 	win, err := gtk.WindowNew(gtk.WINDOW_TOPLEVEL)
 	if err != nil {
@@ -64,10 +74,13 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 	prevInHistoryButton, _ := gtk.ButtonNewWithLabel("prev")
 	nextInHistoryButton, _ := gtk.ButtonNewWithLabel("next")
 
+	maxDimLabel, _ := gtk.LabelNew("____")
+
 	panel.PackStart(runButton, false, false, 0)
 	panel.PackStart(penButton, false, false, 0)
 	panel.PackStart(prevInHistoryButton, false, false, 0)
 	panel.PackStart(nextInHistoryButton, false, false, 0)
+	panel.PackStart(maxDimLabel, false, false, 0)
 	var canvas = canvasCreate()
 	hbox.PackStart(canvas, true, true, 0)
 
@@ -107,10 +120,18 @@ func createWindow() (*gtk.Window, *gtk.DrawingArea) {
 		}
 	})
 
-	return win, canvas
+	return win, canvas, maxDimLabel
 }
 
-func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
+func updateBufferInBackground(drawingArea *gtk.DrawingArea, maxDimLabel *gtk.Label) {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 4096)
+			n := runtime.Stack(buf, false)
+			fmt.Printf("Panic: %v\n", r)
+			fmt.Printf("Stack trace:\n%s\n", buf[:n])
+		}
+	}()
 	for {
 		time.Sleep(100 * time.Millisecond)
 		if doconway {
@@ -121,6 +142,7 @@ func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
 				buffers.Mu().Unlock()
 			} else {
 				buffers.NextGeneration()
+
 			}
 
 			glib.IdleAdd(func() {
@@ -128,6 +150,8 @@ func updateBufferInBackground(drawingArea *gtk.DrawingArea) {
 				drawingArea.QueueDraw()
 			})
 		}
+		maxX, maxY := buffers.CurrentBounds()
+		maxDimLabel.SetText(fmt.Sprintf("%d,%d", maxX, maxY))
 
 	}
 }
@@ -146,8 +170,8 @@ func updateSurface() {
 	cr.Paint()
 
 	cr.SetSourceRGB(0, 0, 0) // Black for drawing
-	for i := uint(0); i < data.MaxX(); i++ {
-		for j := uint(0); j < data.MaxY(); j++ {
+	for i := uint32(0); i < data.MaxX(); i++ {
+		for j := uint32(0); j < data.MaxY(); j++ {
 			val := data.Get(i, j)
 			if val {
 				x := float64(i) * SIZE
