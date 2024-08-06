@@ -1,12 +1,14 @@
-package go_ruby
+package main
 
 import (
 	"testing"
+
+	"aschoerk.de/go-ruby/ruby"
 )
 
 func TestEach(t *testing.T) {
 
-	var e Enumerable[int] = NewRange[int](1, 11, 1)
+	e := ruby.R[int](1, 11, 1)
 	var count int = 0
 	e.Each(func(el int) {
 		count++
@@ -29,7 +31,7 @@ func TestEach(t *testing.T) {
 
 func TestEachWithIndex(t *testing.T) {
 
-	e := NewRange[int](1, 11, 1)
+	e := ruby.R[int](1, 11, 1)
 	var count int = 0
 	e.EachWithIndex(func(index int, el int) {
 		count++
