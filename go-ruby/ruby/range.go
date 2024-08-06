@@ -2,8 +2,12 @@ package ruby
 
 import "golang.org/x/exp/constraints"
 
-func R[T constraints.Integer](start, end, step T) Enumerable[T] {
+func RStepped[T constraints.Integer](start, end, step T) Enumerable[T] {
 	return &enumerableImpl[T]{EnumeratorGenerator: &rangeEnumeratorGenerator[T]{start, end, step}}
+}
+
+func R[T constraints.Integer](start, end T) Enumerable[T] {
+	return RStepped(start, end, 1)
 }
 
 type rangeEnumerator[T constraints.Integer] struct {

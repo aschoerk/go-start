@@ -8,7 +8,7 @@ import (
 
 func TestEach(t *testing.T) {
 
-	e := ruby.R[int](1, 11, 1)
+	e := ruby.RStepped[int](1, 11, 1)
 	var count int = 0
 	e.Each(func(el int) {
 		count++
@@ -31,7 +31,7 @@ func TestEach(t *testing.T) {
 
 func TestEachWithIndex(t *testing.T) {
 
-	e := ruby.R[int](1, 11, 1)
+	e := ruby.RStepped[int](1, 11, 1)
 	var count int = 0
 	e.EachWithIndex(func(index int, el int) {
 		count++
@@ -43,4 +43,14 @@ func TestEachWithIndex(t *testing.T) {
 		}
 	})
 
+}
+
+func TestSlice(t *testing.T) {
+	e := ruby.E(ruby.R[int](1, 3).Entries())
+	if e.Count() != 2 {
+		t.Errorf("Expected only 2 entries, but was %d", e.Count())
+	}
+	if e.Count(func(a int) bool { return a > 0 }) != 2 {
+		t.Errorf("Expected only 2 entries, but was %d", e.Count())
+	}
 }
